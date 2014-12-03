@@ -29,8 +29,8 @@ sItem* pItem;			// Point to the points of items
 double SqNeibRadius;		// Square of "NeibRadius"
 double* AttrMax;
 double* AttrMin;
-unsigned long nOutlier;		// the # of outliers
-
+unsigned long nOutlier = 0;	// the # of outliers
+unsigned long NormalThres;	// A lower threshold of normal items
 
 // Data Structure -----------------------------------
 struct sItem
@@ -45,7 +45,7 @@ double GetSqDistance( sItem* , sItem* );
 bool isNeighbour( sItem* , sItem* );
 bool AnalysePara(int , char *);
 bool InitData();
-void SeleteOutlier();
+void SelectOutlier();
 
 
 int main(int argc, char *argv[])
@@ -58,15 +58,7 @@ int main(int argc, char *argv[])
     
     NormalizeData();
 
-    for (int i = 0; i < nTotalItem; i++) 
-      for (int j = i+1; j < nTotalItem; j++) 
-	if( isNeighbour( (pItem+i),(pItem+j) ) )
-	{
-	    ++ ((pItem+i)->Neighbour);
-	    ++ ((pItem+j)->Neighbour);
-	}
-
-    SeleteOutlier();    
+    SelectOutlier();    
 
     return 0;
 }
@@ -75,9 +67,9 @@ int main(int argc, char *argv[])
 // Function ================================================
 //   Analyse the input parameters, which follow the command
 //   The command line to run this program:
-// dbod [-r Input_file_name]  [-n Number_of_item_in_the_file]
-//      [-a Number_of_attribute_of_each_item]
-//      [-c A_fraction_of_total_item] [-d Neighbour_radius]
+// outlier [-r Input_file_name]  [-n Number_of_item_in_the_file]
+//         [-a Number_of_attribute_of_each_item]
+//	   [-c A_fraction_of_total_item] [-d Neighbour_radius]
 // 
 //   Get the running parameters from the command line
 //
@@ -140,6 +132,7 @@ bool AnalysePara(int argc, char *argv[])
 		return false;
 	    }
 
+	    NormalThres = ( 1-fFracRatio ) * nTotalItem - 1;
 	    ++ i;
 	}
 	else if( 0 == strcmp("-d", argv +i ) )
@@ -289,23 +282,32 @@ bool isNeighbour( sItem* item_1, sItem* item_2 )
 // Function ================================================
 //   Select outliers 
 // 
-void SeleteOutlier()
+void SelectOutlier()
 {
-    nOutlier = 0;
-    unsigned long NeibThres = fFracRatio * nTotalItem;
 
     for (int i = 0; i < nTotalItem; i++) 
     {
-	if( (pItem + i)->Neighbours < NeibThres )
+	for (int j = i+1; j < nTotalItem; j++) 
 	{
-	    ++ nOutlier;
-	    // The item 'i' is a outlier
-	    // Here to do with this outlier
-	    /////////////////////////////////////
-	    // TODO:
-	    //
-	    /////////////////////////////////////
+	    if( isNeighbour( (pItem+i),(pItem+j) ) )
+	    {
+		++ ((pItem+i)->Neighbour);
+		++ ((pItem+j)->Neighbour);
+	    }
+	    if( (pItem+i)->Neighbour >= NormalThres )
+	      goto _NORMAL_ITEM;
 	}
+
+	++ nOutlier;
+	// The item 'i' is a outlier
+	// Here to do with this outlier
+	/////////////////////////////////////
+	// TODO:
+	//
+	/////////////////////////////////////
+
+    _NORMAL_ITEM:  continue;
+
     }
 }
 
