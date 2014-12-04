@@ -6,6 +6,9 @@
      14-2-Dec	Starting this project
      14-3-Dec	First version Done.
 
+     14-4-Dec	Simplified the SelectOutlier function
+		Simplified the Data Struction
+		Changed the selection algorithm
 ****************************************************/
 
 #include "string.h"
@@ -37,7 +40,6 @@ struct sItem
 {
     unsigned long ItemId;
     double* AttrData;
-    unsigned long Neighbour;
 };
 
 // Functions ----------------------------------------
@@ -190,8 +192,6 @@ bool InitData()
 	AttrMax[j] = temp;	    
     }
 
-    (pItem +i)->Neighbour = 0;
-
     // Get rest Items -------------
     for (int i = 1; i < nTotalItem; i++)
     {
@@ -208,8 +208,6 @@ bool InitData()
 	    AttrMax[j] =( (AttMax[j]<temp) ? temp : AttrMax[j] );
 	    AttrMin[j] =( (AttMin[j]>temp) ? temp : AttrMin[j] );
 	}
-
-	(pItem +i)->Neighbour = 0;
     }
     
     dataFile.close();
@@ -284,31 +282,31 @@ bool isNeighbour( sItem* item_1, sItem* item_2 )
 // 
 void SelectOutlier()
 {
+    int temp = 0;
 
     for (int i = 0; i < nTotalItem; i++) 
     {
 	for (int j = i+1; j < nTotalItem; j++) 
 	{
-	    if( isNeighbour( (pItem+i),(pItem+j) ) )
-	    {
-		++ ((pItem+i)->Neighbour);
-		++ ((pItem+j)->Neighbour);
-	    }
-	    if( (pItem+i)->Neighbour >= NormalThres )
-	      goto _NORMAL_ITEM;
+	    if( temp >= NormalThres)
+	      break;
+	    else if( isNeighbour( (pItem+i),(pItem+j) ) )
+	      ++ temp;
 	}
 
-	++ nOutlier;
-	// The item 'i' is a outlier
-	// Here to do with this outlier
-	/////////////////////////////////////
-	// TODO:
-	//
-	/////////////////////////////////////
+	if( temp < NormalThres)
+	{
+	    ++ nOutlier;
+	    // The item 'i' is a outlier
+	    // Here to do with this outlier
+	    /////////////////////////////////////
+	    // TODO:
+	    //
+	    /////////////////////////////////////
 
-    _NORMAL_ITEM:  continue;
-
+	}
     }
+
 }
 
 
