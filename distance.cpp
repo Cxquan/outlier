@@ -1,3 +1,4 @@
+
 /***************************************************
  File Name:	distance.cpp
  Abstract:
@@ -9,15 +10,26 @@
      14-4-Dec	Simplified the SelectOutlier function
 		Simplified the Data Struction
 		Changed the selection algorithm
+
+     4-Dec	Modified some longuage mistakes
+		First time Complied
 ****************************************************/
 
 #include "string.h"
 #include "math.h"
 #include <stdlib.h>
 #include <iostream>
+#include <fstream>
 
 using namespace std;
 
+
+// Data Structure -----------------------------------
+struct sItem
+{
+    unsigned long ItemId;
+    double* AttrData;
+};
 
 // Defination of Variates ---------------------------
 // Inputs
@@ -35,24 +47,18 @@ double* AttrMin;
 unsigned long nOutlier = 0;	// the # of outliers
 unsigned long NormalThres;	// A lower threshold of normal items
 
-// Data Structure -----------------------------------
-struct sItem
-{
-    unsigned long ItemId;
-    double* AttrData;
-};
-
 // Functions ----------------------------------------
 double GetSqDistance( sItem* , sItem* );
 bool isNeighbour( sItem* , sItem* );
-bool AnalysePara(int , char *);
+bool AnalysePara( int , char **);
 bool InitData();
+void NormalizeData();
 void SelectOutlier();
 
 
 int main(int argc, char *argv[])
 {
-    if( ! AnalysePara( argc, *argv[]) )
+    if( ! AnalysePara( argc, argv) )
 	return 0;
 
     if( ! InitData() )
@@ -83,26 +89,26 @@ bool AnalysePara(int argc, char *argv[])
 {
     if( 10 != argc )
     {
-	cout << "Parameter Error. Please Check." << endl;
+	cout << "Wrong Parameter. Please Check." << endl;
 	return false;
     }
 
     for (int i = 0; i < argc; i++) 
     {
-	if( 0 == strcmp("-r", argv +i ) )
+	if( 0 == strcmp("-r", *argv +i ) )
 	{
-	    if( strlen( argv + i+1) > 255 )
+	    if( strlen( *argv + i+1) > 255 )
 	    {
 		cout << "File name too long." << endl;
 		return false;
 	    }
 
-	    strcpy( sFile, argv + i+1 );
+	    strcpy( sFile, *argv + i+1 );
 	    ++ i;
 	}
-	else if( 0 == strcmp("-n", argv +i ) )
+	else if( 0 == strcmp("-n", *argv +i ) )
 	{
-	    nTotalItem = atof( argv +i+1);
+	    nTotalItem = atof( *argv +i+1);
 	    if( nTotalItem <= 0 )
 	    {
 		cout << "Negative item number." << endl;
@@ -110,9 +116,9 @@ bool AnalysePara(int argc, char *argv[])
 	    }
 	    ++ i;
 	}
-	else if( 0 == strcmp("-a", argv +i ) )
+	else if( 0 == strcmp("-a", *argv +i ) )
 	{
-	    nAttr = atof( argv +i+1);
+	    nAttr = atof( *argv +i+1);
 	    if( nAttr <= 0 )
 	    {
 		cout << "Negative item attribute number." << endl;
@@ -120,9 +126,9 @@ bool AnalysePara(int argc, char *argv[])
 	    }
 	    ++ i;
 	}
-	else if( 0 == strcmp("-c", argv +i ) )
+	else if( 0 == strcmp("-c", *argv +i ) )
 	{
-	    fFracRatio = atof( argv +i+1);
+	    fFracRatio = atof( *argv +i+1);
 	    if( fFracRatio < 0 )
 	    {
 		cout << "Negative fraction ratio." << endl;
@@ -137,9 +143,9 @@ bool AnalysePara(int argc, char *argv[])
 	    NormalThres = ( 1-fFracRatio ) * nTotalItem - 1;
 	    ++ i;
 	}
-	else if( 0 == strcmp("-d", argv +i ) )
+	else if( 0 == strcmp("-d", *argv +i ) )
 	{
-	    fNeibRadius = atof( argv +i+1);
+	    fNeibRadius = atof( *argv +i+1);
 	    SqNeibRadius = fNeibRadius * fNeibRadius;
 	    if( fNeibRadius <= 0 )
 	    {
@@ -165,7 +171,7 @@ bool AnalysePara(int argc, char *argv[])
 // 
 bool InitData()
 {
-    ifstream dataFile( sFile, ios::in |ios::nocreate, 1 );
+    ifstream dataFile( sFile );
     if( ! dataFile.is_open() )
     {
 	cout << "Open file error." << endl;
@@ -188,7 +194,7 @@ bool InitData()
 	dataFile >> temp;
 	*((pItem->AttrData) + j) = temp;
 	// Get the max and min of the Attributes
-	AttrMin[i] = temp;
+	AttrMin[j] = temp;
 	AttrMax[j] = temp;	    
     }
 
@@ -205,8 +211,8 @@ bool InitData()
 	    *( ((pItem +i)->AttrData) + j) = temp;
 
 	    // Get the max and min of the Attributes
-	    AttrMax[j] =( (AttMax[j]<temp) ? temp : AttrMax[j] );
-	    AttrMin[j] =( (AttMin[j]>temp) ? temp : AttrMin[j] );
+	    AttrMax[j] =( (AttrMax[j]<temp) ? temp : AttrMax[j] );
+	    AttrMin[j] =( (AttrMin[j]>temp) ? temp : AttrMin[j] );
 	}
     }
     
@@ -270,7 +276,7 @@ bool isNeighbour( sItem* item_1, sItem* item_2 )
 {
     double SqDis = GetSqDistance( item_1, item_2);
     
-    if( SqDis > SqNeiRadius )
+    if( SqDis > SqNeibRadius )
       return false;
     else
       return true;
