@@ -13,6 +13,9 @@
 
      4-Dec	Modified some longuage mistakes
 		First time Complied
+     4-Dec	Modified some mistakes
+		First time run correctly
+
 ****************************************************/
 
 #include "string.h"
@@ -50,6 +53,7 @@ unsigned long NormalThres;	// A lower threshold of normal items
 // Functions ----------------------------------------
 double GetSqDistance( sItem* , sItem* );
 bool isNeighbour( sItem* , sItem* );
+bool AnalysePara();
 bool AnalysePara( int , char **);
 bool InitData();
 void NormalizeData();
@@ -58,17 +62,61 @@ void SelectOutlier();
 
 int main(int argc, char *argv[])
 {
-    if( ! AnalysePara( argc, argv) )
-	return 0;
+    // DEBUGING ========================
+    // if( ! AnalysePara( argc, argv) )
+    // 	return 0;
+    AnalysePara();
+    // DEBUGING ========================
 
     if( ! InitData() )
 	return 0;
+
+    unsigned long id;
+    double* temp;
+
+    cout << "Reading data done." << endl;
+
+    // DEBUGING ========================
+    // for ( int i = 0; i < nTotalItem; ++i )
+    // {
+    // 	id = (pItem + i)-> ItemId;
+    // 	temp = (pItem + i)-> AttrData;
+    // 	cout << id <<'\t'
+    // 	     << *(temp) << '\t'
+    // 	     << *(temp +1) << '\t'
+    // 	     << *(temp +2) << endl;
+    // }
+    // return 0;
+    // DEBUGING ========================
+
+
     
-    NormalizeData();
+    //    NormalizeData();
 
     SelectOutlier();    
 
     return 0;
+}
+
+
+// Function ================================================
+//   The simply version of this function.
+//
+bool AnalysePara()
+{
+    strcpy( sFile, "regular_1000_3attr.dat" );
+
+    nTotalItem = 1000;
+
+    nAttr = 3;
+
+    fFracRatio = 0.1;
+    NormalThres = ( 1-fFracRatio ) * nTotalItem - 1;
+
+    fNeibRadius = 0.99;
+    SqNeibRadius = fNeibRadius * fNeibRadius;
+
+    return true;
 }
 
 
@@ -252,7 +300,7 @@ double GetSqDistance( sItem* item_1, sItem* item_2)
     for (int i = 0; i < nAttr; i++) 
     {
 	SqDis += 
-	  pow(*((item_1 +i)->AttrData) - *((item_1 +i)->AttrData), 2);
+	  pow( *(item_1->AttrData +i) - *(item_2->AttrData +i), 2);
     }
     
     return SqDis;
@@ -288,26 +336,30 @@ bool isNeighbour( sItem* item_1, sItem* item_2 )
 // 
 void SelectOutlier()
 {
-    int temp = 0;
+    int sum = 0;
+    cout << "Outliers:" << endl;
 
     for (int i = 0; i < nTotalItem; i++) 
     {
 	for (int j = i+1; j < nTotalItem; j++) 
 	{
-	    if( temp >= NormalThres)
+	    if( sum >= NormalThres)
 	      break;
 	    else if( isNeighbour( (pItem+i),(pItem+j) ) )
-	      ++ temp;
+	      ++ sum;
 	}
 
-	if( temp < NormalThres)
+	if( sum < NormalThres)
 	{
-	    ++ nOutlier;
 	    // The item 'i' is a outlier
 	    // Here to do with this outlier
 	    /////////////////////////////////////
 	    // TODO:
-	    //
+	    ++ nOutlier;
+	    cout << (pItem + i)-> ItemId << " with only " 
+		 << sum << "\tNeighbours"
+		 << endl;
+
 	    /////////////////////////////////////
 
 	}
