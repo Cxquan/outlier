@@ -15,7 +15,8 @@
 		First time Complied
      4-Dec	Modified some mistakes
 		First time run correctly
-
+     5-Dec	Changed the type of "ItemId" from "unsigned
+	     long" to "char[32]"
 ****************************************************/
 
 #include "string.h"
@@ -30,7 +31,8 @@ using namespace std;
 // Data Structure -----------------------------------
 struct sItem
 {
-    unsigned long ItemId;
+    char ItemId[32];
+    //    unsigned long ItemId;
     double* AttrData;
 };
 
