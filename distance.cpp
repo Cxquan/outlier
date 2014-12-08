@@ -51,6 +51,7 @@ double* AttrMax;
 double* AttrMin;
 unsigned long nOutlier = 0;	// the # of outliers
 unsigned long NormalThres;	// A lower threshold of normal items
+unsigned long* nNeighbour; // record # of neighbours for each point
 
 // Functions ----------------------------------------
 double GetSqDistance( sItem* , sItem* );
@@ -338,20 +339,25 @@ bool isNeighbour( sItem* item_1, sItem* item_2 )
 // 
 void SelectOutlier()
 {
-    int sum = 0;
     cout << "Outliers:" << endl;
+
+	nNeighbour = new long[ nTotalItem ];
+	memset( nNeighbour, 0, sizeof( nNeighbour ) );
 
     for (int i = 0; i < nTotalItem; i++) 
     {
 	for (int j = i+1; j < nTotalItem; j++) 
 	{
-	    if( sum >= NormalThres)
+	    if( nNeighbour[i] >= NormalThres)
 	      break;
 	    else if( isNeighbour( (pItem+i),(pItem+j) ) )
-	      ++ sum;
+		{
+	      ++nNeighbour[i];
+		  ++nNeighbour[j];
+		}
 	}
 
-	if( sum < NormalThres)
+	if( nNeighbour[i] < NormalThres)
 	{
 	    // The item 'i' is a outlier
 	    // Here to do with this outlier
@@ -359,7 +365,7 @@ void SelectOutlier()
 	    // TODO:
 	    ++ nOutlier;
 	    cout << (pItem + i)-> ItemId << " with only " 
-		 << sum << "\tNeighbours"
+		 << nNeighbour[i] << "\tNeighbours"
 		 << endl;
 
 	    /////////////////////////////////////
