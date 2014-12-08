@@ -1,22 +1,11 @@
 
 /***************************************************
- File Name:	distance.cpp
+ File Name:	grid.cpp
  Abstract:
  Author:	zhangzhelucky@126.com
  Update History:
-     14-2-Dec	Starting this project
-     14-3-Dec	First version Done.
+     14-5-Dec	Starting this project
 
-     14-4-Dec	Simplified the SelectOutlier function
-		Simplified the Data Struction
-		Changed the selection algorithm
-
-     4-Dec	Modified some longuage mistakes
-		First time Complied
-     4-Dec	Modified some mistakes
-		First time run correctly
-     5-Dec	Changed the type of "ItemId" from "unsigned
-	     long" to "char[32]"
 ****************************************************/
 
 #include "string.h"
@@ -27,39 +16,62 @@
 
 using namespace std;
 
+#define _SHOW_(ITEM)	cout << ITEM->ItemId <<"is an outlier" <<endl
+
+
 
 // Data Structure -----------------------------------
 struct sItem
 {
-    char ItemId[32];
-    //    unsigned long ItemId;
+    char* ItemId;
     double* AttrData;
+    sItem* pNext;
 };
+
+struct sGridNode
+{
+    unsigned int itemNum;
+    sItem* pFirst;
+    sItem* pLast;
+    sGridNode** pNeibour;	// A collection of its level-2 neighbours
+};
+
 
 // Defination of Variates ---------------------------
 // Inputs
 char sFile[256];	 // -r	Indicates the input data file
-int nTotalItem;		 // -n	The total # of items in DB
-int nAttr;		 // -a	The # of Attributes in each item
+unsigned int nTotalItem; // -n	The total # of items in DB
+unsigned int nAttr;	 // -a	The # of Attributes in each item
 double fFracRatio;	 // -c	A fraction of total items
 double fNeibRadius;	 // -d	The Radius of Item to identify its Neighbours
 
-// Global Vatiates
+// Global Variates
 sItem* pItem;			// Point to the points of items
 double SqNeibRadius;		// Square of "NeibRadius"
-double* AttrMax;
-double* AttrMin;
+double GridLength;		// The side length of grid
 unsigned long nOutlier = 0;	// the # of outliers
 unsigned long NormalThres;	// A lower threshold of normal items
 
+// Grid variates
+double* AttrMax;		// Regist the max and min value of each attribute
+double* AttrMin;
+unsigned int* AttrCell;		// The # of cell of each attribute
+unsigned int* AttrOffset;	// The memory offset of each attribute
+sGridNode* Grid;		// Point to the grid
+int CellNum;			// The # of node in grid map
+int* NeibPoint;			// 
+int NeibNum;			// Neighbour cell of one node
 // Functions ----------------------------------------
-double GetSqDistance( sItem* , sItem* );
-bool isNeighbour( sItem* , sItem* );
+// double GetSqDistance( sItem* , sItem* );
+// bool isNeighbour( sItem* , sItem* );
 bool AnalysePara();
 bool AnalysePara( int , char **);
 bool InitData();
-void NormalizeData();
+void Partition();
+//void NormalizeData();
 void SelectOutlier();
+int getLevel_1_Sum();
+int getLevel_2_Sum();
 
 
 int main(int argc, char *argv[])
@@ -117,6 +129,7 @@ bool AnalysePara()
 
     fNeibRadius = 0.99;
     SqNeibRadius = fNeibRadius * fNeibRadius;
+    GridLength = ( fNeibRadius /2 ) / pow(nAttr, 0.5);
 
     return true;
 }
@@ -196,7 +209,7 @@ bool AnalysePara(int argc, char *argv[])
 	else if( 0 == strcmp("-d", *argv +i ) )
 	{
 	    fNeibRadius = atof( *argv +i+1);
-	    SqNeibRadius = fNeibRadius * fNeibRadius;
+	    GridLength = ( fNeibRadius /2 ) / pow(nAttr, 0.5);
 	    if( fNeibRadius <= 0 )
 	    {
 		cout << "Negative Radius." << endl;
@@ -228,14 +241,16 @@ bool InitData()
 	return false;
     }
 
-    // Initialize memory
+    // Initialize memory ===================
     pItem = new sItem[ nTotalItem ];
     AttrMax = new double[ nAttr ];
     AttrMin = new double[ nAttr ];
+    AttrCell = new unsigned int[ nAttr ];
 
     // Get data =============================
-    // Get first Item -------------
+    // Get first Item ----------
     dataFile >> ( pItem->ItemId );
+    pItem->pNext = NULL;
 
     pItem->AttrData = new double[ nAttr ];
     for (int j=0; j < nAttr; j++)
@@ -248,10 +263,11 @@ bool InitData()
 	AttrMax[j] = temp;	    
     }
 
-    // Get rest Items -------------
+    // Get rest Items ----------
     for (int i = 1; i < nTotalItem; i++)
     {
 	dataFile >> ( (pItem +i)->ItemId );
+	pItem->pNext = NULL;
 
 	(pItem +i)->AttrData = new double[ nAttr ];
 	for (int j=0; j < nAttr; j++)
@@ -272,22 +288,117 @@ bool InitData()
 
 
 // Function ================================================
-// Normalize the data in follow formula
-//   out = ( in - min ) / ( max - min )
 //
-//   The output data should be in the range of 0 and 1
+// Return:
 //
-// 
-void NormalizeData()
+void Partition()
 {
-    for (int j = 0; j < nAttr; j++)		// Attribute Loop
+    // Make cells ================
+    CellNum = 1;
+    NeibNum = pow( 7, nAttr) - pow( 3, nAttr) + 1;
+
+    for ( int i = 0; i < nAttr; ++i )
     {
-	double Rang = AttrMax[j] - AttrMin[j];
-	for (int i = 0; i < nTotalItem; i++)	// Item Loop
+	double tempRang = *( AttrMax +i ) - *( AttrMin +i );
+	*(AttrCell +i) = (int)( tempRang / GridLength ) + 1;
+
+	// Initialize the memory offset of current attribute
+	*(AttrOffset + i) = CellNum;
+
+	// Calcutate the total # of cells
+	CellNum *= *(AttrCell +i);
+    }
+
+    Grid = new sGridNode[ CellNum ];
+    for ( int i = 0; i < CellNum; ++i )
+    {
+	( Grid + i) -> itemNum = 0;
+	( Grid + i) -> pFirst = NULL;
+	( Grid + i) -> pLast = NULL;
+	for ( int j = 0; j < NeibNum; ++j )
+	  ((Grid + i) -> pNeibour)[j] = NULL;
+    }
+
+    // Partition items ===========
+    int tempPoint = 0;
+    for ( int i = 0; i < nTotalItem; ++i )
+    {
+	for ( int j = 0; j < nAttr; ++j )
 	{
-	    double temp = *( ((pItem +i)->AttrData) + j);
-	    temp = (temp - AttrMin[j] ) / Rang;
-	    *( ((pItem +i)->AttrData) + j) = temp;
+	    int temp = ( *((pItem +i)->AttrData +j) - *(AttrMin+j) )
+		       / GridLength ;
+	    tempPoint += temp * (*(AttrOffset +j));
+	}
+
+	sGridNode* pNode = Grid + tempPoint;
+	if ( 0 == pNode->itemNum)
+	  pNode->pFirst = pItem +i;
+	else 
+	  pNode->pLast->pNext = pItem + i;
+
+	pNode->pLast = pItem + i;
+	++ ( pNode -> itemNum);
+    }
+
+}
+
+
+// Function ================================================
+//
+//
+void getLevel_1_Sum( int node, int* sum, int attr = 0 )
+{
+    if( nAttr == attr )
+    {
+	int _pos;
+	for ( int j = 0; j < nAttr; ++j )
+	  _pos += *(NeibPoint+j) * (*AttrOffset+j);
+	if ( (node + _pos) >= CellNum || (node + _pos) < 0 )
+	    return;
+	else
+	  *sum += (Grid + _pos)->itemNum;
+    }
+    else
+    {
+	for ( int i = -1; i <= 1; ++i )
+	{
+	    *(NeibPoint + attr) = i;
+	    getLevel_1_Sum( node , sum , attr+1 );
+	}
+    }
+}
+
+
+// Function ================================================
+//
+//
+void getLevel_2_Sum( int node, int* sum, int attr = 0 )
+{
+    if( nAttr == attr )
+    {
+	int _pos;
+	for ( int j = 0; j < nAttr; ++j )
+	  _pos += *(NeibPoint+j) * (*AttrOffset+j);
+
+	if ( (node + _pos) >= CellNum || (node + _pos) < 0 )
+	    return;
+	else
+	{
+	    *sum += (Grid + _pos)->itemNum;
+	    int i = 0;
+	    while ( NULL != *((Grid + node)->pNeibour) + i )
+	      ++ i;
+	    ((Grid + node)->pNeibour)[i] = (Grid + _pos);
+	}
+    }
+    else
+    {
+	for ( int i = -3; i <= 3; ++i )
+	{
+	    if ( i > 1 || i < -1)
+	      continue;
+	    *(NeibPoint + attr) = i;
+	    getLevel_2_Sum( node , sum , attr+1 );
 	}
     }
 }
@@ -338,35 +449,71 @@ bool isNeighbour( sItem* item_1, sItem* item_2 )
 // 
 void SelectOutlier()
 {
-    int sum = 0;
-    cout << "Outliers:" << endl;
-
-    for (int i = 0; i < nTotalItem; i++) 
+    for ( int i = 0; i < CellNum; ++i )
     {
-	for (int j = i+1; j < nTotalItem; j++) 
+	// If current node is empty--------------------
+	if ( 0 == (Grid +i)->itemNum)
+	  break;
+
+	// Checking level-1 cell pruning rule ---------
+	int level_1_sum = 0;
+	getLevel_1_Sum( i, &level_1_sum );
+	
+	// Checking level-2 cell pruning rule ---------
+	int level_2_sum = 0;
+	getLevel_2_Sum( i, &level_2_sum);
+
+	// Pruning ------------------------------------
+	if( level_1_sum >= NormalThres )
 	{
-	    if( sum >= NormalThres)
-	      break;
-	    else if( isNeighbour( (pItem+i),(pItem+j) ) )
-	      ++ sum;
+	    // All items in current node are NORMAL
 	}
-
-	if( sum < NormalThres)
+	else if ( (level_2_sum + level_1_sum) < NormalThres )
 	{
-	    // The item 'i' is a outlier
-	    // Here to do with this outlier
-	    /////////////////////////////////////
-	    // TODO:
-	    ++ nOutlier;
-	    cout << (pItem + i)-> ItemId << " with only " 
-		 << sum << "\tNeighbours"
-		 << endl;
-
-	    /////////////////////////////////////
-
+	    // ALL items in current node are OUTLIERS
+	    sItem* tempItem = (Grid + i)->pFirst;
+	    while ( NULL != tempItem );
+	    {
+		_SHOW_( tempItem );
+		tempItem = tempItem->pNext;
+	    } 
+	}
+	else
+	{
+	    // To check if items in this cell is outlier one by one
+	    sItem* unknownItem = (Grid + i)->pFirst;
+	    while ( NULL != unknownItem );
+	    {
+		sGridNode* NeibGrid =  *((Grid + i)->pNeibour) ;
+		int tempSum = 0;
+		while ( NULL != NeibGrid ) 
+		{
+		    sItem* NeibItem = NeibGrid->pFirst;
+		    for ( int i = 0; i < NeibGrid->itemNum; ++i )
+		    {
+			if ( isNeighbour( unknownItem, NeibItem ) )
+			{
+			    ++ tempSum;
+			    if ( tempSum >= NormalThres -level_1_sum )
+			    {
+				tempSum = -1;
+				break;
+			    }
+			}
+			NeibItem = NeibItem->pNext;
+		    }
+		    if ( -1 ==  tempSum )
+		      break;
+		    unknownItem = unknownItem->pNext;
+		    ++ NeibGrid;
+		}
+		if ( tempSum < NormalThres -level_1_sum )
+		  _SHOW_( unknownItem );
+		unknownItem = unknownItem->pNext;
+	    }
 	}
     }
-
 }
+
 
 
